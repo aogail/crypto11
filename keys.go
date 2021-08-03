@@ -611,3 +611,75 @@ func (c *Context) GetPubAttribute(key interface{}, attribute AttributeType) (a *
 
 	return set[attribute], nil
 }
+
+func (c *Context) setAttributes(handle pkcs11.ObjectHandle, attributes AttributeSet) (err error) {
+	err = c.withSession(func(session *pkcs11Session) error {
+		var attrs []*pkcs11.Attribute
+		for _, a := range attributes {
+			attrs = append(attrs, pkcs11.NewAttribute(a.Type, a.Value))
+		}
+
+		err := session.ctx.SetAttributeValue(session.handle, handle, attrs)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	return err
+}
+
+// SetAttributes sets the values of the specified attributes on the given key or keypair.
+// If the key is asymmetric, then the attributes are set on the private half.
+//
+// If the object is not a crypto11 key or keypair then an error is returned.
+func (c *Context) SetAttributes(key interface{}, attributes AttributeSet) (err error) {
+	if c.closed.Get() {
+		return errClosed
+	}
+
+	var handle pkcs11.ObjectHandle
+
+	switch k := (key).(type) {
+	case *pkcs11PrivateKeyDSA:
+		handle = k.handle
+	case *pkcs11PrivateKeyRSA:
+		handle = k.handle
+	case *pkcs11PrivateKeyECDSA:
+		handle = k.handle
+	case *SecretKey:
+		handle = k.handle
+	default:
+		return errors.Errorf("not a PKCS#11 key")
+	}
+
+	return c.setAttributes(handle, attributes)
+}
+
+// SetPubAttributes sets the values of the specified attributes on the given key or keypair.
+// If the key is asymmetric, then the attributes are set on the private half.
+//
+// If the object is not a crypto11 key or keypair then an error is returned.
+func (c *Context) SetPubAttributes(key interface{}, attributes AttributeSet) (err error) {
+	if c.closed.Get() {
+		return errClosed
+	}
+
+	var handle pkcs11.ObjectHandle
+
+	switch k := (key).(type) {
+	case *pkcs11PrivateKeyDSA:
+		handle = k.pubKeyHandle
+	case *pkcs11PrivateKeyRSA:
+		handle = k.pubKeyHandle
+	case *pkcs11PrivateKeyECDSA:
+		handle = k.pubKeyHandle
+	case *SecretKey:
+		handle = k.handle
+	default:
+		return errors.Errorf("not a PKCS#11 key")
+	}
+
+	return c.setAttributes(handle, attributes)
+}
